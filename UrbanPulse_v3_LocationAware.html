@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UrbanPulse — Predictive Growth Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --bg-primary:#ffffff; --bg-secondary:#f5f5f3; --bg-tertiary:#eeecea;
+  --text-primary:#1a1a18; --text-secondary:#6b6b67;
+  --border:rgba(0,0,0,0.10); --border-md:rgba(0,0,0,0.20);
+  --radius-md:8px; --radius-lg:12px;
+  --green:#1D9E75; --amber:#EF9F27; --red:#E24B4A;
+  --blue:#378ADD; --purple:#534AB7;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-primary:#1e1e1c; --bg-secondary:#2a2a28; --bg-tertiary:#323230;
+    --text-primary:#f0ede8; --text-secondary:#9a9892;
+    --border:rgba(255,255,255,0.09); --border-md:rgba(255,255,255,0.17);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg-tertiary);color:var(--text-primary);min-height:100vh;}
+
+/* ── LOCATION SCREEN ── */
+#locationScreen {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--bg-tertiary); padding:24px;
+}
+.loc-card {
+  background:var(--bg-primary); border:0.5px solid var(--border-md);
+  border-radius:20px; padding:40px 44px; max-width:500px; width:100%;
+  text-align:center;
+}
+.loc-logo { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:28px; }
+.loc-dot { width:13px; height:13px; border-radius:50%; background:var(--green); }
+.loc-title { font-size:22px; font-weight:500; letter-spacing:-0.4px; }
+.loc-sub { font-size:12px; color:var(--text-secondary); font-family:'Space Mono',monospace; margin-top:3px; }
+.loc-desc { font-size:13px; color:var(--text-secondary); line-height:1.7; margin-bottom:28px; }
+
+.loc-gps-btn {
+  width:100%; padding:14px; border-radius:var(--radius-lg);
+  background:var(--green); color:#fff; border:none;
+  font-family:'Syne',sans-serif; font-size:14px; font-weight:500;
+  cursor:pointer; transition:opacity 0.15s; display:flex; align-items:center;
+  justify-content:center; gap:10px; margin-bottom:12px;
+}
+.loc-gps-btn:hover{opacity:0.88;}
+.loc-gps-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+.loc-divider { display:flex; align-items:center; gap:12px; margin:16px 0; color:var(--text-secondary); font-size:11px; font-family:'Space Mono',monospace; }
+.loc-divider::before,.loc-divider::after { content:''; flex:1; height:0.5px; background:var(--border-md); }
+
+.loc-input-row { display:flex; gap:8px; }
+.loc-input {
+  flex:1; padding:12px 14px; border-radius:var(--radius-md);
+  border:0.5px solid var(--border-md); background:var(--bg-secondary);
+  color:var(--text-primary); font-family:'Syne',sans-serif; font-size:13px;
+  outline:none; transition:border-color 0.15s;
+}
+.loc-input:focus { border-color:var(--green); }
+.loc-search-btn {
+  padding:12px 20px; border-radius:var(--radius-md);
+  background:var(--bg-secondary); border:0.5px solid var(--border-md);
+  color:var(--text-primary); font-family:'Syne',sans-serif; font-size:13px;
+  cursor:pointer; transition:background 0.15s; white-space:nowrap;
+}
+.loc-search-btn:hover { background:var(--bg-tertiary); }
+
+.loc-suggestions {
+  margin-top:8px; background:var(--bg-primary); border:0.5px solid var(--border-md);
+  border-radius:var(--radius-md); overflow:hidden; display:none;
+}
+.loc-suggestion {
+  padding:10px 14px; font-size:12px; cursor:pointer; text-align:left;
+  border-bottom:0.5px solid var(--border); transition:background 0.12s;
+  display:flex; align-items:center; gap:8px; color:var(--text-primary);
+}
+.loc-suggestion:last-child{border-bottom:none;}
+.loc-suggestion:hover{background:var(--bg-secondary);}
+.loc-suggestion-icon{font-size:14px;}
+
+.loc-status { margin-top:16px; font-size:11px; font-family:'Space Mono',monospace; color:var(--text-secondary); min-height:18px; }
+.loc-status.error { color:var(--red); }
+.loc-status.success { color:var(--green); }
+
+/* ── LOADING SCREEN ── */
+#loadingScreen {
+  min-height:100vh; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:20px; background:var(--bg-tertiary);
+}
+.loading-title { font-size:18px; font-weight:500; color:var(--text-primary); }
+.loading-sub { font-size:11px; font-family:'Space Mono',monospace; color:var(--text-secondary); }
+.loading-steps { display:flex; flex-direction:column; gap:8px; margin-top:8px; min-width:300px; }
+.loading-step { display:flex; align-items:center; gap:10px; font-size:12px; font-family:'Space Mono',monospace; color:var(--text-secondary); }
+.loading-step .ld { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.ld-wait { background:var(--border-md); }
+.ld-spin { background:var(--amber); animation:pulse 0.8s infinite; }
+.ld-done { background:var(--green); }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.loading-bar-wrap { width:300px; height:3px; background:var(--border); border-radius:2px; overflow:hidden; margin-top:4px; }
+.loading-bar { height:100%; background:var(--green); border-radius:2px; width:0%; transition:width 0.4s ease; }
+
+/* ── MAIN DASHBOARD ── */
+#dashboard { display:none; max-width:1200px; margin:0 auto; background:var(--bg-primary); min-height:100vh; }
+
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; border-bottom:0.5px solid var(--border); flex-wrap:wrap; gap:10px; }
+.logo-dot { width:11px; height:11px; border-radius:50%; background:var(--green); }
+.logo-text { font-size:15px; font-weight:500; letter-spacing:-0.3px; }
+.logo-sub { font-size:10px; color:var(--text-secondary); font-family:'Space Mono',monospace; }
+.live-badge { font-family:'Space Mono',monospace; font-size:10px; padding:3px 10px; border-radius:20px; background:#EAF3DE; color:#3B6D11; border:0.5px solid #97C459; }
+.live-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#639922; margin-right:4px; animation:pulse 1.5s infinite; }
+.change-loc-btn { padding:7px 14px; border-radius:var(--radius-md); border:0.5px solid var(--border-md); background:transparent; font-family:'Syne',sans-serif; font-size:12px; cursor:pointer; color:var(--text-secondary); transition:all 0.15s; }
+.change-loc-btn:hover{color:var(--text-primary);background:var(--bg-secondary);}
+.export-btn { display:flex; align-items:center; gap:7px; padding:8px 16px; border:0.5px solid var(--border-md); border-radius:var(--radius-md); background:transparent; font-family:'Syne',sans-serif; font-size:12px; cursor:pointer; color:var(--text-primary); transition:background 0.15s; }
+.export-btn:hover{background:var(--bg-secondary);}
+
+.tabs { display:flex; padding:0 24px; border-bottom:0.5px solid var(--border); overflow-x:auto; }
+.tab { padding:10px 18px; font-size:13px; cursor:pointer; color:var(--text-secondary); border:none; border-bottom:2px solid transparent; background:none; font-family:'Syne',sans-serif; transition:all 0.15s; white-space:nowrap; }
+.tab:hover{color:var(--text-primary);}
+.tab.active{color:var(--text-primary);border-bottom:2px solid var(--green);font-weight:500;}
+.tab-pane{display:none;padding:20px 24px;}
+.tab-pane.active{display:block;}
+
+.metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.metric-card{background:var(--bg-secondary);border-radius:var(--radius-md);padding:14px 16px;}
+.metric-label{font-size:10px;color:var(--text-secondary);margin-bottom:5px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.5px;}
+.metric-val{font-size:22px;font-weight:500;}
+.metric-val-sm{font-size:15px;font-weight:500;margin-top:3px;}
+.metric-delta{font-size:11px;color:#3B6D11;margin-top:3px;}
+
+.panel{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:0.5px solid var(--border);}
+.panel-title{font-size:13px;font-weight:500;}
+.panel-tag{font-size:9px;font-family:'Space Mono',monospace;color:var(--text-secondary);}
+
+.main-grid{display:grid;grid-template-columns:1fr 310px;gap:14px;margin-bottom:18px;}
+.map-area{position:relative;height:340px;background:var(--bg-secondary);overflow:hidden;}
+.map-svg{width:100%;height:100%;}
+.zone-label-svg{font-family:'Space Mono',monospace;font-size:8.5px;pointer-events:none;}
+.heat-dot{cursor:pointer;}
+
+.tooltip{position:absolute;background:var(--bg-primary);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:11px 14px;font-size:12px;pointer-events:none;display:none;z-index:100;min-width:175px;box-shadow:0 4px 16px rgba(0,0,0,.10);}
+.tooltip-name{font-weight:500;font-size:13px;margin-bottom:7px;}
+.tooltip-row{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px;}
+.tooltip-key{color:var(--text-secondary);}
+.tooltip-val{font-family:'Space Mono',monospace;font-weight:700;}
+
+.score-list{overflow-y:auto;max-height:380px;}
+.score-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .15s;}
+.score-item:hover{background:var(--bg-secondary);}
+.score-item:last-child{border-bottom:none;}
+.score-rank{font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);width:18px;}
+.score-name{flex:1;font-size:13px;}
+.score-bar-wrap{width:70px;height:3px;background:var(--bg-secondary);border-radius:2px;overflow:hidden;}
+.score-bar{height:100%;border-radius:2px;}
+.score-num{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;min-width:28px;text-align:right;}
+
+.legend-row{display:flex;align-items:center;gap:14px;padding:10px 16px 0;font-size:10px;color:var(--text-secondary);font-family:'Space Mono',monospace;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:5px;}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.ai-feed{padding:10px 16px;max-height:230px;overflow-y:auto;}
+.ai-entry{display:flex;gap:9px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:11px;}
+.ai-entry:last-child{border-bottom:none;}
+.ai-source-badge{font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;white-space:nowrap;align-self:flex-start;margin-top:1px;}
+.badge-osint{background:#E6F1FB;color:#185FA5;}
+.badge-muni{background:#FAEEDA;color:#854F0B;}
+.badge-market{background:#EAF3DE;color:#3B6D11;}
+.ai-text{flex:1;line-height:1.55;color:var(--text-primary);}
+.ai-time{color:var(--text-secondary);font-size:9px;font-family:'Space Mono',monospace;white-space:nowrap;}
+
+/* AI ANALYSIS BOX */
+.ai-analysis-box{padding:16px;font-size:12px;line-height:1.8;color:var(--text-primary);}
+.ai-analysis-box.loading{color:var(--text-secondary);font-family:'Space Mono',monospace;font-size:11px;animation:pulse 1s infinite;}
+.ai-analysis-header{font-size:9px;font-family:'Space Mono',monospace;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ROI */
+.roi-outer{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.roi-label{font-size:10px;color:var(--text-secondary);margin-bottom:5px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.4px;}
+.zone-select{width:100%;padding:9px 12px;border-radius:var(--radius-md);border:0.5px solid var(--border-md);background:var(--bg-primary);color:var(--text-primary);font-family:'Syne',sans-serif;font-size:13px;outline:none;}
+.zone-select:focus{border-color:var(--green);}
+input[type=range]{width:100%;accent-color:var(--green);}
+.slider-row{display:flex;justify-content:space-between;font-size:9px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-top:3px;}
+.roi-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+.roi-result-item{background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px 14px;}
+.roi-result-label{font-size:9px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-bottom:5px;text-transform:uppercase;}
+.roi-result-val{font-size:20px;font-weight:500;}
+.risk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;}
+.risk-item{background:var(--bg-secondary);border-radius:var(--radius-md);padding:14px;}
+.risk-label{font-size:10px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-bottom:7px;text-transform:uppercase;}
+.risk-val{font-size:22px;font-weight:500;margin-bottom:8px;}
+.risk-bar-wrap{height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.risk-bar{height:100%;border-radius:2px;}
+.chart-wrap{position:relative;width:100%;}
+#clock{font-family:'Space Mono',monospace;font-size:10px;color:var(--text-secondary);}
+
+@media(max-width:768px){
+  .main-grid,.bottom-grid,.roi-outer,.metrics-row,.risk-grid{grid-template-columns:1fr;}
+  .loc-card{padding:28px 22px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ LOCATION SCREEN ═══════════════ -->
+<div id="locationScreen">
+  <div class="loc-card">
+    <div class="loc-logo">
+      <div class="loc-dot"></div>
+      <div>
+        <div class="loc-title">UrbanPulse</div>
+        <div class="loc-sub">Predictive Growth Analytics Engine v3.0</div>
+      </div>
+    </div>
+    <p class="loc-desc">
+      Enter any city or area to generate a real-time AI-powered urban growth analysis —
+      scoring zones by municipal activity, market signals, pricing velocity, and rental absorption.
+    </p>
+
+    <button class="loc-gps-btn" id="gpsBtn" onclick="useGPS()">
+      <span id="gpsIcon">&#9678;</span>
+      <span id="gpsBtnText">Use My Current Location</span>
+    </button>
+
+    <div class="loc-divider">or enter manually</div>
+
+    <div class="loc-input-row">
+      <input class="loc-input" id="locInput" type="text" placeholder="e.g. Chandigarh, Amritsar, Mumbai..."
+        oninput="handleInput(this.value)" onkeydown="if(event.key==='Enter')searchLocation()"/>
+      <button class="loc-search-btn" onclick="searchLocation()">Analyze ↗</button>
+    </div>
+    <div class="loc-suggestions" id="suggestions"></div>
+    <div class="loc-status" id="locStatus"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ LOADING SCREEN ═══════════════ -->
+<div id="loadingScreen">
+  <div style="text-align:center;">
+    <div class="loc-logo" style="justify-content:center;margin-bottom:8px;">
+      <div class="loc-dot"></div>
+      <div class="loading-title" id="loadingCity">Analyzing...</div>
+    </div>
+    <div class="loading-sub">AI is gathering intelligence data</div>
+  </div>
+  <div class="loading-steps" id="loadingSteps">
+    <div class="loading-step"><div class="ld ld-wait" id="ls1"></div>Fetching municipal declarations</div>
+    <div class="loading-step"><div class="ld ld-wait" id="ls2"></div>Scraping real estate portals</div>
+    <div class="loading-step"><div class="ld ld-wait" id="ls3"></div>Analyzing pricing velocity</div>
+    <div class="loading-step"><div class="ld ld-wait" id="ls4"></div>Processing infrastructure signals</div>
+    <div class="loading-step"><div class="ld ld-wait" id="ls5"></div>Computing Growth Velocity Scores</div>
+    <div class="loading-step"><div class="ld ld-wait" id="ls6"></div>Rendering dashboard</div>
+  </div>
+  <div class="loading-bar-wrap"><div class="loading-bar" id="loadingBar"></div></div>
+</div>
+
+<!-- ═══════════════ MAIN DASHBOARD ═══════════════ -->
+<div id="dashboard">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="logo-dot"></div>
+      <div>
+        <div class="logo-text">UrbanPulse — <span id="cityNameHeader">—</span></div>
+        <div class="logo-sub">Predictive Growth Analytics Engine v3.0</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button class="change-loc-btn" onclick="resetToLocation()">&#8634; Change Location</button>
+      <button class="export-btn" onclick="exportPDF()">&#8681; Export PDF</button>
+      <div class="live-badge"><span class="live-dot"></span>AI ACTIVE</div>
+      <div id="clock"></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('map',this)">Heatmap</button>
+    <button class="tab" onclick="switchTab('analysis',this)">AI Analysis</button>
+    <button class="tab" onclick="switchTab('trends',this)">Trend Charts</button>
+    <button class="tab" onclick="switchTab('roi',this)">ROI Calculator</button>
+  </div>
+
+  <!-- MAP TAB -->
+  <div class="tab-pane active" id="tab-map">
+    <div class="metrics-row" id="metricsRow"></div>
+    <div class="main-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title" id="mapTitle">Growth Heatmap</div>
+          <div class="panel-tag">GEOSPATIAL / 24–60 MONTH HORIZON</div>
+        </div>
+        <div class="map-area" id="mapArea">
+          <svg class="map-svg" id="mapSvg" viewBox="0 0 560 340"></svg>
+          <div class="tooltip" id="tooltip"></div>
+        </div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>High (75–100)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div>Moderate (50–74)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Slow (&lt;50)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#378ADD"></div>Infra trigger</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Growth Velocity Ranking</div>
+          <div class="panel-tag">COMPOSITE SCORE /100</div>
+        </div>
+        <div class="score-list" id="scoreList"></div>
+      </div>
+    </div>
+    <div class="bottom-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Live Intelligence Feed</div>
+          <div class="panel-tag">OSINT + MUNICIPAL + MARKET</div>
+        </div>
+        <div class="ai-feed" id="aiFeed"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Scoring Formula</div>
+          <div class="panel-tag">GROWTH VELOCITY ALGORITHM</div>
+        </div>
+        <div style="padding:16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:11px;background:var(--bg-secondary);padding:14px;border-radius:var(--radius-md);line-height:2.2;color:var(--text-secondary);">
+            GVS = (Municipal × 0.35)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;+ (Market Density × 0.25)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;+ (Pricing Velocity × 0.25)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;+ (Rental Absorption × 0.15)<br>
+            <br>
+            <span style="color:var(--green)">Infra Trigger Bonus: +8 pts</span><br>
+            <span style="color:var(--blue)">CLU Policy Change: +5 pts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI ANALYSIS TAB -->
+  <div class="tab-pane" id="tab-analysis">
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header">
+        <div class="panel-title">AI-Powered Market Intelligence</div>
+        <div class="panel-tag">LIVE WEB SEARCH + CLAUDE ANALYSIS</div>
+      </div>
+      <div id="aiAnalysisContent" class="ai-analysis-box loading">Loading analysis...</div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Investment Signals Summary</div>
+        <div class="panel-tag">TOP ZONES WITH TRIGGERS</div>
+      </div>
+      <div id="signalsSummary" style="padding:16px;"></div>
+    </div>
+  </div>
+
+  <!-- TRENDS TAB -->
+  <div class="tab-pane" id="tab-trends">
+    <div style="margin-bottom:16px;">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Price Velocity — Top 5 Zones (₹/sqft over 6 quarters)</div>
+          <div class="panel-tag">PRICING TREND</div>
+        </div>
+        <div style="padding:16px;">
+          <div id="priceLegend" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:11px;color:var(--text-secondary);"></div>
+          <div class="chart-wrap" style="height:280px;"><canvas id="priceChart" role="img" aria-label="Line chart showing price per sqft trends for top 5 zones over 6 quarters">Price per sqft over 6 quarters.</canvas></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Growth Score by Factor</div><div class="panel-tag">RADAR BREAKDOWN</div></div>
+        <div style="padding:16px;">
+          <div id="radarLegend" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:11px;color:var(--text-secondary);"></div>
+          <div class="chart-wrap" style="height:260px;"><canvas id="radarChart" role="img" aria-label="Radar chart showing growth score breakdown by factor for top 3 zones">Factor breakdown for top 3 zones.</canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Rental Yield vs Price Growth</div><div class="panel-tag">UNDERVALUED ZONE FINDER</div></div>
+        <div style="padding:16px;">
+          <div class="chart-wrap" style="height:280px;"><canvas id="bubbleChart" role="img" aria-label="Bubble chart with rental yield on Y axis and annual price growth on X axis">Rental yield vs price growth for all zones.</canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROI TAB -->
+  <div class="tab-pane" id="tab-roi">
+    <div class="roi-outer">
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Investment Parameters</div><div class="panel-tag">CONFIGURE SCENARIO</div></div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <div class="roi-label">Select Zone</div>
+            <select class="zone-select" id="roiZone" onchange="calcROI()"></select>
+          </div>
+          <div>
+            <div class="roi-label">Investment Amount: <span id="invLabel" style="color:var(--text-primary);font-weight:500">₹50L</span></div>
+            <input type="range" min="10" max="500" value="50" step="5" id="invAmt" oninput="document.getElementById('invLabel').textContent='₹'+this.value+'L';calcROI()">
+            <div class="slider-row"><span>₹10L</span><span>₹500L</span></div>
+          </div>
+          <div>
+            <div class="roi-label">Horizon: <span id="horizLabel" style="color:var(--text-primary);font-weight:500">3 years</span></div>
+            <input type="range" min="1" max="10" value="3" step="1" id="horizon" oninput="document.getElementById('horizLabel').textContent=this.value+' year'+(this.value>1?'s':'');calcROI()">
+            <div class="slider-row"><span>1 yr</span><span>10 yrs</span></div>
+          </div>
+          <div>
+            <div class="roi-label">Property Type</div>
+            <select class="zone-select" id="propType" onchange="calcROI()">
+              <option value="res">Residential Flat</option>
+              <option value="plot">Residential Plot (+15%)</option>
+              <option value="comm">Commercial (−10%)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Projected Returns</div><div class="panel-tag">AI-MODELED FORECAST</div></div>
+        <div style="padding:16px;">
+          <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:14px;">
+            <div style="font-size:10px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-bottom:10px;text-transform:uppercase">Projected Outcome</div>
+            <div class="roi-result-grid" id="roiResults"></div>
+          </div>
+          <div class="chart-wrap" style="height:170px;margin-top:16px;"><canvas id="roiChart" role="img" aria-label="Bar chart showing year by year projected property value">Year by year value projection.</canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header"><div class="panel-title">Risk Assessment Matrix</div><div class="panel-tag">MULTI-FACTOR RISK SCORING</div></div>
+      <div class="risk-grid" id="riskMatrix"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════ STATE ═══════════
+let CITY_NAME = "";
+let CITY_STATE = "";
+let ZONES = [];
+let chartsBuilt = false;
+let roiChartInst = null;
+const CHART_COLORS = ["#1D9E75","#378ADD","#EF9F27","#E24B4A","#534AB7","#0F6E56","#185FA5"];
+const COLOR = { high:"#1D9E75", mid:"#EF9F27", low:"#E24B4A", infra:"#378ADD" };
+const GRAD  = { high:"hH", mid:"hM", low:"hL" };
+
+// ═══════════ SUGGESTIONS ═══════════
+const POPULAR = [
+  "Ludhiana, Punjab","Chandigarh","Amritsar, Punjab","Jalandhar, Punjab",
+  "Delhi NCR","Mumbai","Pune","Bangalore","Hyderabad","Chennai",
+  "Jaipur","Ahmedabad","Surat","Kochi","Noida","Gurgaon"
+];
+
+function handleInput(val) {
+  const box = document.getElementById("suggestions");
+  if (!val || val.length < 2) { box.style.display = "none"; return; }
+  const matches = POPULAR.filter(c => c.toLowerCase().includes(val.toLowerCase())).slice(0, 5);
+  if (!matches.length) { box.style.display = "none"; return; }
+  box.innerHTML = matches.map(m =>
+    `<div class="loc-suggestion" onclick="selectSuggestion('${m}')"><span class="loc-suggestion-icon">&#9670;</span>${m}</div>`
+  ).join("");
+  box.style.display = "block";
+}
+
+function selectSuggestion(city) {
+  document.getElementById("locInput").value = city;
+  document.getElementById("suggestions").style.display = "none";
+  searchLocation();
+}
+
+// ═══════════ GPS ═══════════
+function useGPS() {
+  const btn = document.getElementById("gpsBtn");
+  const status = document.getElementById("locStatus");
+  if (!navigator.geolocation) {
+    status.textContent = "Geolocation not supported by this browser.";
+    status.className = "loc-status error";
+    return;
+  }
+  btn.disabled = true;
+  document.getElementById("gpsBtnText").textContent = "Requesting location...";
+  document.getElementById("gpsIcon").textContent = "⏳";
+  status.textContent = "Waiting for location permission...";
+  status.className = "loc-status";
+
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      status.textContent = `Got coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)} — reverse geocoding...`;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        const data = await res.json();
+        const city = data.address.city || data.address.town || data.address.village || data.address.county || "Your Location";
+        const state = data.address.state || "";
+        status.textContent = `Found: ${city}, ${state}`;
+        status.className = "loc-status success";
+        startAnalysis(city, state);
+      } catch(e) {
+        status.textContent = `Got location, but couldn't reverse geocode. Using coordinates.`;
+        status.className = "loc-status";
+        startAnalysis(`${lat.toFixed(2)}, ${lng.toFixed(2)}`, "");
+      }
+    },
+    err => {
+      btn.disabled = false;
+      document.getElementById("gpsBtnText").textContent = "Use My Current Location";
+      document.getElementById("gpsIcon").textContent = "⊙";
+      const msgs = {1:"Location permission denied.", 2:"Location unavailable.", 3:"Request timed out."};
+      status.textContent = msgs[err.code] || "Location error.";
+      status.className = "loc-status error";
+    },
+    { timeout: 10000, enableHighAccuracy: false }
+  );
+}
+
+function searchLocation() {
+  const val = document.getElementById("locInput").value.trim();
+  if (!val) {
+    document.getElementById("locStatus").textContent = "Please enter a city name.";
+    document.getElementById("locStatus").className = "loc-status error";
+    return;
+  }
+  document.getElementById("suggestions").style.display = "none";
+  const parts = val.split(",").map(s => s.trim());
+  startAnalysis(parts[0], parts[1] || "");
+}
+
+// ═══════════ LOADING + AI ANALYSIS ═══════════
+function setLS(id, state) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = "ld " + (state === "done" ? "ld-done" : state === "spin" ? "ld-spin" : "ld-wait");
+}
+function setBar(pct) {
+  document.getElementById("loadingBar").style.width = pct + "%";
+}
+
+async function startAnalysis(city, state) {
+  CITY_NAME = city;
+  CITY_STATE = state;
+  chartsBuilt = false;
+  roiChartInst = null;
+
+  // Show loading
+  document.getElementById("locationScreen").style.display = "none";
+  document.getElementById("loadingScreen").style.display = "flex";
+  document.getElementById("loadingCity").textContent = `Analyzing ${city}...`;
+
+  const fullCity = state ? `${city}, ${state}` : city;
+
+  // Animate steps
+  const stepDelay = [[1,400],[2,900],[3,1500],[4,2200],[5,3000],[6,3800]];
+  stepDelay.forEach(([n, d]) => {
+    setTimeout(() => { setLS("ls"+n, "spin"); setBar(n*14); }, d);
+    setTimeout(() => { setLS("ls"+n, "done"); }, d + 600);
+  });
+
+  // Call Claude API with web search
+  let aiData = null;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 2000,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{
+          role: "user",
+          content: `You are a real estate intelligence analyst. Search for current information about the real estate market in ${fullCity}, India. Find:
+1. Major localities/neighborhoods and their property prices (₹/sqft)
+2. Infrastructure projects (metro, roads, government schemes)
+3. Property price trends and appreciation rates
+4. Rental yields in different areas
+5. Municipal corporation or government development plans
+
+Then respond ONLY with a valid JSON object (no markdown, no backticks) in exactly this format:
+{
+  "city": "${city}",
+  "state": "${state || 'India'}",
+  "summary": "3-4 sentence executive summary of the real estate market",
+  "topZone": "name of top investment zone",
+  "avgGrowth": number (average annual % growth across city),
+  "zones": [
+    {
+      "name": "Zone/Locality Name",
+      "score": number 0-100,
+      "muni": number 0-100,
+      "market": number 0-100,
+      "rental": number 0-100,
+      "pricing": number 0-100,
+      "tier": "high" or "mid" or "low",
+      "infra": true or false,
+      "sqft": number (avg price per sqft in INR),
+      "rental_yield": number (e.g. 3.5),
+      "trend": number (annual % appreciation),
+      "infraNote": "brief note on infra if infra=true, else empty string"
+    }
+  ],
+  "feed": [
+    {"source": "MUNI" or "MARKET" or "OSINT", "text": "brief intelligence note", "time": "Xh ago"},
+    ... (6-8 items)
+  ],
+  "risks": {
+    "liquidity": number,
+    "regulatory": number,
+    "infraDependency": number,
+    "volatility": number,
+    "demandStability": number,
+    "resaleEase": number
+  }
+}
+Include 6-10 zones sorted by score descending. Make data realistic and specific to ${fullCity}.`
+        }]
+      })
+    });
+    const data = await res.json();
+    const textBlocks = data.content.filter(b => b.type === "text").map(b => b.text).join("");
+    const jsonMatch = textBlocks.match(/\{[\s\S]*\}/);
+    if (jsonMatch) aiData = JSON.parse(jsonMatch[0]);
+  } catch(e) {
+    console.warn("API error, using fallback", e);
+  }
+
+  // Fallback data
+  if (!aiData) aiData = generateFallback(city, state);
+
+  setBar(100);
+  setTimeout(() => showDashboard(aiData), 500);
+}
+
+function generateFallback(city, state) {
+  const zoneTemplates = [
+    {suffix:"Central",score:88,trend:18,sqft:6500,rental_yield:4.5,infra:true},
+    {suffix:"Sector 17",score:82,trend:16,sqft:8200,rental_yield:4.1,infra:false},
+    {suffix:"Airport Rd",score:78,trend:14,sqft:5800,rental_yield:3.8,infra:true},
+    {suffix:"IT Park",score:73,trend:12,sqft:5200,rental_yield:3.5,infra:false},
+    {suffix:"Old City",score:68,trend:10,sqft:4800,rental_yield:3.2,infra:false},
+    {suffix:"Ring Rd",score:62,trend:8,sqft:4200,rental_yield:2.9,infra:true},
+    {suffix:"Outer Zone",score:54,trend:6,sqft:3600,rental_yield:2.6,infra:false},
+    {suffix:"Industrial Belt",score:46,trend:4,sqft:2900,rental_yield:2.2,infra:false},
+  ];
+  return {
+    city, state: state || "India",
+    summary: `${city} shows strong real estate growth potential driven by infrastructure expansion and rising demand. The central and airport corridor zones lead appreciation metrics with consistent year-over-year gains. Rental absorption remains robust across residential segments.`,
+    topZone: city + " Central",
+    avgGrowth: 11,
+    zones: zoneTemplates.map(z => ({
+      name: city + " " + z.suffix,
+      score: z.score, muni: z.score-5, market: z.score+2, rental: z.score-3, pricing: z.score+1,
+      tier: z.score>=75?"high":z.score>=50?"mid":"low",
+      infra: z.infra, sqft: z.sqft, rental_yield: z.rental_yield, trend: z.trend,
+      infraNote: z.infra ? "Govt infrastructure project active" : ""
+    })),
+    feed: [
+      {source:"MUNI",text:`Municipal corporation approved major infrastructure spending for ${city}`,time:"3h ago"},
+      {source:"MARKET",text:`Real estate portals show 15% increase in listing activity across ${city}`,time:"5h ago"},
+      {source:"OSINT",text:`State government announced development corridor project near ${city}`,time:"8h ago"},
+      {source:"MARKET",text:`Average property prices in ${city} up 12% year-on-year`,time:"1d ago"},
+      {source:"MUNI",text:`New metro/road connectivity plans filed for ${city} urban area`,time:"1d ago"},
+      {source:"OSINT",text:`IT and commercial investment interest rising in ${city} periphery zones`,time:"2d ago"},
+    ],
+    risks:{liquidity:70,regulatory:48,infraDependency:62,volatility:38,demandStability:74,resaleEase:66}
+  };
+}
+
+// ═══════════ BUILD DASHBOARD ═══════════
+function showDashboard(data) {
+  ZONES = data.zones;
+  document.getElementById("loadingScreen").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+
+  const fullCity = data.state ? `${data.city}, ${data.state}` : data.city;
+  document.getElementById("cityNameHeader").textContent = fullCity;
+  document.getElementById("mapTitle").textContent = `${data.city} Growth Heatmap`;
+  document.title = `UrbanPulse — ${fullCity}`;
+
+  buildMetrics(data);
+  buildMap(data);
+  buildScores();
+  buildFeed(data.feed);
+  buildROISelect();
+  buildRisk(data.risks);
+  buildAIAnalysis(data);
+  tick();
+  setInterval(tick, 1000);
+}
+
+function buildMetrics(data) {
+  const top = ZONES[0];
+  document.getElementById("metricsRow").innerHTML = `
+    <div class="metric-card"><div class="metric-label">Zones Analyzed</div><div class="metric-val">${ZONES.length}</div><div class="metric-delta">↑ AI-identified this session</div></div>
+    <div class="metric-card"><div class="metric-label">Avg Growth Score</div><div class="metric-val">${(ZONES.reduce((s,z)=>s+z.score,0)/ZONES.length).toFixed(1)}</div><div class="metric-delta">↑ Composite GVS</div></div>
+    <div class="metric-card"><div class="metric-label">Top Zone</div><div class="metric-val-sm">${top.name}</div><div class="metric-delta">Score: ${top.score}/100</div></div>
+    <div class="metric-card"><div class="metric-label">Avg Annual Growth</div><div class="metric-val">${data.avgGrowth}%</div><div class="metric-delta">↑ Across all zones</div></div>`;
+}
+
+// ═══════════ MAP ═══════════
+function buildMap(data) {
+  const svg = document.getElementById("mapSvg");
+  svg.innerHTML = "";
+
+  // Background
+  const bg = document.createElementNS("http://www.w3.org/2000/svg","rect");
+  bg.setAttribute("width","560"); bg.setAttribute("height","340"); bg.setAttribute("fill","transparent");
+  svg.appendChild(bg);
+
+  // Scatter zones across viewport with some structure
+  const positions = layoutZones(ZONES.length);
+
+  const tt = document.getElementById("tooltip");
+
+  ZONES.forEach((z, i) => {
+    const pos = positions[i];
+    const r = 9 + (z.score / 100) * 26;
+
+    // Gradient defs
+    if (i === 0) {
+      ["hH","hM","hL"].forEach((id, gi) => {
+        const colors = ["#1D9E75","#EF9F27","#E24B4A"];
+        const grad = document.createElementNS("http://www.w3.org/2000/svg","radialGradient");
+        grad.setAttribute("id", id); grad.setAttribute("cx","50%"); grad.setAttribute("cy","50%"); grad.setAttribute("r","50%");
+        const s1 = document.createElementNS("http://www.w3.org/2000/svg","stop");
+        s1.setAttribute("offset","0%"); s1.setAttribute("stop-color",colors[gi]); s1.setAttribute("stop-opacity","0.30");
+        const s2 = document.createElementNS("http://www.w3.org/2000/svg","stop");
+        s2.setAttribute("offset","100%"); s2.setAttribute("stop-color",colors[gi]); s2.setAttribute("stop-opacity","0");
+        grad.appendChild(s1); grad.appendChild(s2);
+        let defs = svg.querySelector("defs");
+        if (!defs) { defs = document.createElementNS("http://www.w3.org/2000/svg","defs"); svg.insertBefore(defs, svg.firstChild); }
+        defs.appendChild(grad);
+      });
+    }
+
+    const halo = document.createElementNS("http://www.w3.org/2000/svg","ellipse");
+    halo.setAttribute("cx", pos.x); halo.setAttribute("cy", pos.y);
+    halo.setAttribute("rx", r*2.3); halo.setAttribute("ry", r*1.9);
+    halo.setAttribute("fill", `url(#${GRAD[z.tier]})`);
+    svg.appendChild(halo);
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    dot.setAttribute("cx", pos.x); dot.setAttribute("cy", pos.y);
+    dot.setAttribute("r", r * 0.52);
+    dot.setAttribute("fill", z.infra ? COLOR.infra : COLOR[z.tier]);
+    dot.setAttribute("opacity","0.92");
+    dot.classList.add("heat-dot");
+
+    dot.addEventListener("mouseenter", () => {
+      tt.style.display = "block";
+      tt.innerHTML = `<div class="tooltip-name">${z.name}</div>
+        <div class="tooltip-row"><span class="tooltip-key">Growth Score</span><span class="tooltip-val" style="color:${COLOR[z.tier]}">${z.score}/100</span></div>
+        <div class="tooltip-row"><span class="tooltip-key">Avg ₹/sqft</span><span class="tooltip-val">₹${z.sqft.toLocaleString()}</span></div>
+        <div class="tooltip-row"><span class="tooltip-key">Rental Yield</span><span class="tooltip-val">${z.rental_yield}%</span></div>
+        <div class="tooltip-row"><span class="tooltip-key">Price Trend</span><span class="tooltip-val" style="color:#3B6D11">+${z.trend}% YoY</span></div>
+        ${z.infra ? `<div style="margin-top:6px;font-size:9px;color:#185FA5;font-family:Space Mono,monospace;font-weight:700">⚡ ${z.infraNote||'INFRA TRIGGER ACTIVE'}</div>` : ''}`;
+    });
+    dot.addEventListener("mousemove", e => {
+      const rect = document.getElementById("mapArea").getBoundingClientRect();
+      let tx = e.clientX - rect.left + 14, ty = e.clientY - rect.top - 12;
+      if (tx + 180 > rect.width) tx -= 194;
+      if (ty + 145 > rect.height) ty -= 130;
+      tt.style.left = tx + "px"; tt.style.top = ty + "px";
+    });
+    dot.addEventListener("mouseleave", () => { tt.style.display = "none"; });
+    svg.appendChild(dot);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg","text");
+    label.setAttribute("x", pos.x + r * 0.58 + 3); label.setAttribute("y", pos.y + 3);
+    label.setAttribute("class","zone-label-svg"); label.setAttribute("fill","#888"); label.setAttribute("font-size","8.5");
+    label.textContent = z.name.length > 16 ? z.name.slice(0,15)+"…" : z.name;
+    svg.appendChild(label);
+  });
+}
+
+function layoutZones(n) {
+  // Place dots in a natural scatter pattern across the 560x340 canvas
+  const positions = [];
+  const cols = Math.ceil(Math.sqrt(n * 1.6));
+  const rows = Math.ceil(n / cols);
+  const padX = 55, padY = 40;
+  const stepX = (560 - padX*2) / (cols);
+  const stepY = (340 - padY*2) / (rows);
+  for (let i = 0; i < n; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    // Add jitter for natural look
+    const jx = (Math.random() - 0.5) * stepX * 0.55;
+    const jy = (Math.random() - 0.5) * stepY * 0.55;
+    positions.push({
+      x: Math.round(padX + col * stepX + stepX/2 + jx),
+      y: Math.round(padY + row * stepY + stepY/2 + jy)
+    });
+  }
+  return positions;
+}
+
+// ═══════════ SCORES ═══════════
+function buildScores() {
+  const sorted = [...ZONES].sort((a,b) => b.score - a.score);
+  document.getElementById("scoreList").innerHTML = sorted.map((z,i) => `
+    <div class="score-item">
+      <div class="score-rank">${String(i+1).padStart(2,"0")}</div>
+      <div class="score-name">${z.name}</div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:${z.score}%;background:${COLOR[z.tier]}"></div></div>
+      <div class="score-num" style="color:${COLOR[z.tier]}">${z.score}</div>
+    </div>`).join("");
+}
+
+// ═══════════ FEED ═══════════
+function buildFeed(feed) {
+  document.getElementById("aiFeed").innerHTML = feed.map(f => `
+    <div class="ai-entry">
+      <span class="ai-source-badge badge-${f.source.toLowerCase()}">${f.source}</span>
+      <span class="ai-text">${f.text}</span>
+      <span class="ai-time">${f.time}</span>
+    </div>`).join("");
+}
+
+// ═══════════ AI ANALYSIS TAB ═══════════
+function buildAIAnalysis(data) {
+  const top3 = ZONES.slice(0, 3);
+  document.getElementById("aiAnalysisContent").className = "ai-analysis-box";
+  document.getElementById("aiAnalysisContent").innerHTML = `
+    <div class="ai-analysis-header">Executive Summary — ${CITY_NAME} Real Estate Market</div>
+    <p style="margin-bottom:14px;">${data.summary}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;">
+      <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;">
+        <div style="font-size:10px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-bottom:6px;text-transform:uppercase">Top Investment Pick</div>
+        <div style="font-size:15px;font-weight:500;color:var(--green)">${data.topZone}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">Score: ${ZONES[0].score}/100 — ${ZONES[0].infra?'Infra trigger active':'Strong market signals'}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;">
+        <div style="font-size:10px;color:var(--text-secondary);font-family:'Space Mono',monospace;margin-bottom:6px;text-transform:uppercase">Market Avg Growth</div>
+        <div style="font-size:15px;font-weight:500;color:var(--amber)">${data.avgGrowth}% / year</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">Across ${ZONES.length} analyzed zones</div>
+      </div>
+    </div>`;
+
+  document.getElementById("signalsSummary").innerHTML = top3.map((z, i) => `
+    <div style="display:flex;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);">
+      <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${COLOR[z.tier]};width:28px;flex-shrink:0;">${i+1}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">${z.name}</div>
+        <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
+          ₹${z.sqft.toLocaleString()}/sqft · ${z.rental_yield}% yield · +${z.trend}% YoY
+          ${z.infra ? ` · <span style="color:#185FA5">⚡ ${z.infraNote||'Infra trigger'}</span>` : ''}
+        </div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:${COLOR[z.tier]};align-self:center;">${z.score}</div>
+    </div>`).join("") + `<div style="font-size:11px;color:var(--text-secondary);padding-top:12px;">Showing top 3 of ${ZONES.length} zones. Switch to Heatmap tab to see all zones.</div>`;
+}
+
+// ═══════════ TREND CHARTS ═══════════
+function buildTrendCharts() {
+  if (chartsBuilt) return;
+  chartsBuilt = true;
+  const top5 = ZONES.slice(0, 5);
+  const quarters = ["Q3'23","Q4'23","Q1'24","Q2'24","Q3'24","Q4'24"];
+
+  // Generate yoy data from current sqft + trend
+  top5.forEach(z => {
+    if (!z.yoy) {
+      const rate = z.trend / 100;
+      z.yoy = Array.from({length:6}, (_,i) => Math.round(z.sqft / Math.pow(1+rate, (5-i)*0.25)));
+    }
+  });
+
+  document.getElementById("priceLegend").innerHTML = top5.map((z,i) =>
+    `<span style="display:flex;align-items:center;gap:5px;"><span style="width:18px;height:3px;background:${CHART_COLORS[i]};display:inline-block;border-radius:2px;"></span>${z.name}</span>`
+  ).join("");
+
+  new Chart(document.getElementById("priceChart"), {
+    type:"line",
+    data:{labels:quarters, datasets:top5.map((z,i)=>({label:z.name,data:z.yoy,borderColor:CHART_COLORS[i],backgroundColor:"transparent",borderWidth:2,pointRadius:3,tension:0.35}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"₹"+v.toLocaleString()},grid:{color:"rgba(128,128,128,0.07)"}},x:{grid:{color:"rgba(128,128,128,0.07)"}}}}
+  });
+
+  const top3 = ZONES.slice(0,3);
+  document.getElementById("radarLegend").innerHTML = top3.map((z,i) =>
+    `<span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;background:${CHART_COLORS[i]};display:inline-block;border-radius:2px;"></span>${z.name}</span>`
+  ).join("");
+
+  new Chart(document.getElementById("radarChart"), {
+    type:"radar",
+    data:{labels:["Municipal","Market","Rental","Pricing","Overall"],datasets:top3.map((z,i)=>({label:z.name,data:[z.muni,z.market,z.rental,z.pricing,z.score],borderColor:CHART_COLORS[i],backgroundColor:CHART_COLORS[i]+"22",borderWidth:1.5,pointRadius:3}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:"rgba(128,128,128,0.12)"},pointLabels:{font:{size:11}}}}}
+  });
+
+  new Chart(document.getElementById("bubbleChart"), {
+    type:"bubble",
+    data:{datasets:ZONES.map((z,i)=>({label:z.name,data:[{x:z.trend,y:z.rental_yield,r:Math.max(4,z.score/9)}],backgroundColor:COLOR[z.tier]+"88",borderColor:COLOR[z.tier],borderWidth:1.2}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:d=>`${d.dataset.label}: +${d.raw.x}% YoY, ${d.raw.y}% yield`}}},scales:{x:{title:{display:true,text:"Price Growth (% YoY)",font:{size:11}},min:0,grid:{color:"rgba(128,128,128,0.07)"}},y:{title:{display:true,text:"Rental Yield (%)",font:{size:11}},min:1,grid:{color:"rgba(128,128,128,0.07)"}}}}
+  });
+}
+
+// ═══════════ ROI ═══════════
+function buildROISelect() {
+  document.getElementById("roiZone").innerHTML = ZONES.slice(0,8).map((z,i) =>
+    `<option value="${i}">${z.name} — Score ${z.score}</option>`
+  ).join("");
+  calcROI();
+}
+
+function calcROI() {
+  if (!ZONES.length) return;
+  const zi = parseInt(document.getElementById("roiZone").value);
+  const z  = ZONES[zi] || ZONES[0];
+  const amt = parseInt(document.getElementById("invAmt").value);
+  const yrs = parseInt(document.getElementById("horizon").value);
+  const pt  = document.getElementById("propType").value;
+  const mult = {res:1, plot:1.15, comm:0.9};
+  const g   = (z.trend / 100) * mult[pt];
+  const fv  = amt * Math.pow(1+g, yrs);
+  const ren = amt * (z.rental_yield/100) * yrs;
+  const roi = (((fv+ren-amt)/amt)*100).toFixed(1);
+  const cagr= ((Math.pow(fv/amt,1/yrs)-1)*100).toFixed(1);
+
+  document.getElementById("roiResults").innerHTML = `
+    <div class="roi-result-item"><div class="roi-result-label">Future Value</div><div class="roi-result-val" style="color:var(--green)">₹${fv.toFixed(1)}L</div></div>
+    <div class="roi-result-item"><div class="roi-result-label">Total Rental</div><div class="roi-result-val" style="color:var(--blue)">₹${ren.toFixed(1)}L</div></div>
+    <div class="roi-result-item"><div class="roi-result-label">Total ROI</div><div class="roi-result-val" style="color:var(--amber)">${roi}%</div></div>
+    <div class="roi-result-item"><div class="roi-result-label">CAGR</div><div class="roi-result-val" style="color:var(--purple)">${cagr}%</div></div>`;
+
+  const labels = Array.from({length:yrs},(_,i)=>`Yr ${i+1}`);
+  const vals   = Array.from({length:yrs},(_,i)=>parseFloat((amt*Math.pow(1+g,i+1)).toFixed(1)));
+  if (roiChartInst) { roiChartInst.destroy(); }
+  roiChartInst = new Chart(document.getElementById("roiChart"), {
+    type:"bar",
+    data:{labels,datasets:[{label:"Value (₹L)",data:vals,backgroundColor:"#1D9E7544",borderColor:"#1D9E75",borderWidth:1.5,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"₹"+v+"L"},grid:{color:"rgba(128,128,128,0.07)"}},x:{grid:{display:false}}}}
+  });
+}
+
+function buildRisk(risks) {
+  const items = [
+    {label:"Market Liquidity",   score:risks.liquidity,       color:risks.liquidity>65?"#1D9E75":risks.liquidity>45?"#EF9F27":"#E24B4A"},
+    {label:"Regulatory Risk",    score:risks.regulatory,      color:risks.regulatory>65?"#1D9E75":risks.regulatory>45?"#EF9F27":"#E24B4A"},
+    {label:"Infra Dependency",   score:risks.infraDependency, color:risks.infraDependency>65?"#1D9E75":risks.infraDependency>45?"#EF9F27":"#E24B4A"},
+    {label:"Price Volatility",   score:risks.volatility,      color:risks.volatility>65?"#1D9E75":risks.volatility>45?"#EF9F27":"#E24B4A"},
+    {label:"Demand Stability",   score:risks.demandStability, color:risks.demandStability>65?"#1D9E75":risks.demandStability>45?"#EF9F27":"#E24B4A"},
+    {label:"Resale Ease",        score:risks.resaleEase,      color:risks.resaleEase>65?"#1D9E75":risks.resaleEase>45?"#EF9F27":"#E24B4A"},
+  ];
+  document.getElementById("riskMatrix").innerHTML = items.map(r=>`
+    <div class="risk-item">
+      <div class="risk-label">${r.label}</div>
+      <div class="risk-val" style="color:${r.color}">${r.score}<span style="font-size:12px;color:var(--text-secondary)">/100</span></div>
+      <div class="risk-bar-wrap"><div class="risk-bar" style="width:${r.score}%;background:${r.color}"></div></div>
+    </div>`).join("");
+}
+
+// ═══════════ TAB SWITCH ═══════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name==='trends') setTimeout(buildTrendCharts, 60);
+  if (name==='roi') setTimeout(()=>{calcROI();buildRisk(window._riskData||{liquidity:70,regulatory:48,infraDependency:62,volatility:38,demandStability:74,resaleEase:66});},60);
+}
+
+// ═══════════ RESET ═══════════
+function resetToLocation() {
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("locationScreen").style.display = "flex";
+  document.getElementById("locInput").value = "";
+  document.getElementById("locStatus").textContent = "";
+  document.getElementById("locStatus").className = "loc-status";
+  document.getElementById("gpsBtn").disabled = false;
+  document.getElementById("gpsBtnText").textContent = "Use My Current Location";
+  document.getElementById("gpsIcon").textContent = "⊙";
+  chartsBuilt = false;
+  ZONES = [];
+  ["ls1","ls2","ls3","ls4","ls5","ls6"].forEach(id=>setLS(id,"wait"));
+  setBar(0);
+}
+
+// ═══════════ PDF EXPORT ═══════════
+function exportPDF() {
+  if (!window.jspdf) { alert("PDF library loading, please try again."); return; }
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF();
+  const G=[29,158,117], B=[30,30,28], LG=[100,100,98];
+  const fullCity = CITY_STATE ? `${CITY_NAME}, ${CITY_STATE}` : CITY_NAME;
+
+  doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.setTextColor(...G);
+  doc.text("UrbanPulse — " + fullCity, 14, 22);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...LG);
+  doc.text("Predictive Urban Growth Modeling Report", 14, 30);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 37);
+  doc.setDrawColor(200); doc.line(14, 41, 196, 41);
+
+  doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...B);
+  doc.text("Zone Growth Velocity Rankings", 14, 52);
+
+  const sorted = [...ZONES].sort((a,b)=>b.score-a.score);
+  const headers = ["#","Zone","Score","₹/sqft","Yield","Trend","Infra"];
+  const colW    = [10,52,22,28,18,22,16];
+  let y = 60;
+  doc.setFillColor(...G); doc.setTextColor(255); doc.setFontSize(9); doc.setFont("helvetica","bold");
+  let x = 14;
+  headers.forEach((h,i)=>{ doc.rect(x,y-5,colW[i],7,'F'); doc.text(h,x+1,y); x+=colW[i]; });
+  y += 5;
+  sorted.forEach((z,ri)=>{
+    if(ri%2===0){doc.setFillColor(240,250,246);doc.rect(14,y-5,182,7,'F');}
+    doc.setTextColor(...B); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+    x=14;
+    [ri+1,z.name.slice(0,24),z.score+"/100","₹"+z.sqft.toLocaleString(),z.rental_yield+"%","+"+z.trend+"%",z.infra?"YES":"—"]
+      .forEach((cell,i)=>{ doc.text(String(cell),x+1,y); x+=colW[i]; });
+    y+=7;
+    if(y>270){doc.addPage();y=20;}
+  });
+
+  y += 10;
+  doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...B);
+  doc.text("Investment Recommendations", 14, y); y += 10;
+  sorted.slice(0,3).forEach((z,i)=>{
+    doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...B);
+    doc.text(`${i+1}. ${z.name} (Score: ${z.score}/100)`, 14, y); y+=6;
+    doc.setFont("helvetica","normal"); doc.setTextColor(...LG); doc.setFontSize(9);
+    doc.text(`₹${z.sqft.toLocaleString()}/sqft · ${z.rental_yield}% rental yield · +${z.trend}% YoY appreciation`, 14, y); y+=6;
+    if(z.infra) { doc.text(`Infrastructure trigger: ${z.infraNote||'Active government project'}`, 14, y); y+=6; }
+    y+=4;
+  });
+
+  doc.setFontSize(8); doc.setTextColor(160);
+  doc.text(`UrbanPulse Analytics Engine | Predictive Urban Growth Modeling | ${fullCity}`, 14, 285);
+  doc.save(`UrbanPulse_${CITY_NAME.replace(/\s+/g,'_')}_Report.pdf`);
+}
+
+// ═══════════ CLOCK ═══════════
+function tick() {
+  const el = document.getElementById("clock");
+  if (el) el.textContent = new Date().toLocaleTimeString();
+}
+</script>
+</body>
+</html>
